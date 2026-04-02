@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String                @id @default(cuid())
+  email           String                @unique
+  emailVerified   Boolean               @default(false)
+  name            String?
+  image           String?
+  role            Role                  @default(CONSUMER)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  accounts        Account[]
+  auditLogs       AuditLog[]
+  favoriteDishes  FavoriteDish[]
+  favoriteVendors FavoriteVendor[]
+  sessions        Session[]
+  allergenProfile UserAllergenProfile[]
+  vendor          Vendor?
+
+  @@map("users")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accessToken           String?   @db.Text
+  accountId             String
+  createdAt             DateTime  @default(now())
+  expiresAt             DateTime?
+  idToken               String?   @db.Text
+  password              String?   @db.Text
+  providerId            String
+  refreshToken          String?   @db.Text
+  updatedAt             DateTime  @updatedAt
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId], map: "accounts_userId_fkey")
+  @@map("accounts")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  token     String   @unique
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "sessions_userId_fkey")
+  @@map("sessions")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String   @db.VarChar(255)
+  value      String   @db.Text
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model Vendor {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  businessNameEn  String
+  businessNameMs  String?
+  businessType    String
+  imageUrl        String?
+  address         String       @db.Text
+  state           String
+  status          VendorStatus @default(PENDING)
+  halalCertified  Boolean      @default(false)
+  halalCertNumber String?
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  dishes          Dish[]
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vendors")
+}
+
+model Dish {
+  id                   String                @id @default(cuid())
+  vendorId             String
+  nameEn               String
+  nameMs               String?
+  descriptionEn        String                @db.Text
+  descriptionMs        String?               @db.Text
+  category             String
+  cuisineType          String
+  price                Float
+  imageUrl             String?               @db.Text
+  preparationTime      Int?
+  servingSize          String?
+  calories             Int?
+  status               DishStatus            @default(DRAFT)
+  allergenInfoComplete Boolean               @default(false)
+  isAvailable          Boolean               @default(true)
+  isVegetarian         Boolean               @default(false)
+  isVegan              Boolean               @default(false)
+  isHalal              Boolean               @default(true)
+  approvedBy           String?
+  approvedAt           DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  allergenMappings     DishAllergenMapping[]
+  vendor               Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId], map: "dishes_vendorId_fkey")
+  @@map("dishes")
+}
+
+model Allergen {
+  id            String                @id @default(cuid())
+  nameEn        String                @unique
+  nameMs        String?
+  descriptionEn String?               @db.Text
+  descriptionMs String?               @db.Text
+  icon          String?
+  isMajor       Boolean               @default(true)
+  displayOrder  Int                   @default(0)
+  isActive      Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  dishMappings  DishAllergenMapping[]
+
+  @@map("allergens")
+}
+
+model DishAllergenMapping {
+  id             String           @id @default(cuid())
+  dishId         String
+  allergenId     String
+  contains       AllergenPresence @default(NO)
+  notes          String?          @db.Text
+  lastVerifiedAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  allergen       Allergen         @relation(fields: [allergenId], references: [id], onDelete: Cascade)
+  dish           Dish             @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([dishId, allergenId])
+  @@index([allergenId], map: "dish_allergen_mappings_allergenId_fkey")
+  @@map("dish_allergen_mappings")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  actionType String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "audit_logs_userId_fkey")
+  @@map("audit_logs")
+}
+
+model UserAllergenProfile {
+  id         String   @id @default(cuid())
+  userId     String
+  allergenId String
+  severity   String?
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, allergenId])
+  @@map("user_allergen_profiles")
+}
+
+model FavoriteDish {
+  id        String   @id @default(cuid())
+  userId    String
+  dishId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dishId])
+  @@map("favorite_dishes")
+}
+
+model FavoriteVendor {
+  id        String   @id @default(cuid())
+  userId    String
+  vendorId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vendorId])
+  @@map("favorite_vendors")
+}
+
+enum Role {
+  ADMIN
+  VENDOR
+  CONSUMER
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum DishStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AllergenPresence {
+  YES
+  NO
+  MAY_CONTAIN
+}
